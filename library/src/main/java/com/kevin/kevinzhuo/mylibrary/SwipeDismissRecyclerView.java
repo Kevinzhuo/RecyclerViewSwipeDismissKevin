@@ -37,6 +37,13 @@ public class SwipeDismissRecyclerView implements View.OnTouchListener {
     public SwipeDismissRecyclerView(Builder builder) {
         ViewConfiguration vc = ViewConfiguration.get(builder.mRecyclerView.getContext());
         mSlop = vc.getScaledTouchSlop();
+        mMinFlingVelocity = vc.getScaledMinimumFlingVelocity() * 16;
+        mMaxFlingVelocity = vc.getScaledMaximumFlingVelocity();
+        mAnimationTime = builder.mRecyclerView.getContext().getResources().getInteger(android.R.integer.config_shortAnimTime);
+        mRecyclerView = builder.mRecyclerView;
+        mCallbacks = builder.mCallbacks;
+        mIsVertical = builder.mIsVertical;
+        mItemTouchCallback = builder.mItemTouchCallBack;
     }
 
     public interface DismissCallbacls {

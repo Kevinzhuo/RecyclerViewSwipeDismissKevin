@@ -1,10 +1,12 @@
 package com.kevin.kevinzhuo.mylibrary;
 
+import android.graphics.Rect;
 import android.support.v7.widget.RecyclerView;
 import android.view.MotionEvent;
 import android.view.VelocityTracker;
 import android.view.View;
 import android.view.ViewConfiguration;
+import android.widget.ListView;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,6 +46,92 @@ public class SwipeDismissRecyclerView implements View.OnTouchListener {
         mCallbacks = builder.mCallbacks;
         mIsVertical = builder.mIsVertical;
         mItemTouchCallback = builder.mItemTouchCallBack;
+    }
+
+    public void setEnabled(boolean enabled) {
+        mPaused = !enabled;
+    }
+
+    @Override
+    public boolean onTouch(View v, MotionEvent event) {
+
+        if (mViewWidth < 2) {
+            mViewWidth = mIsVertical ? mRecyclerView.getHeight() : mRecyclerView.getWidth();
+        }
+
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN: {
+                if (mPaused) {
+                    return false;
+                }
+
+                Rect rect = new Rect();
+                int childCount = mRecyclerView.getChildCount();
+                int[] listViewCoords = new int[2];
+                mRecyclerView.getLocationOnScreen(listViewCoords);
+                int x = (int) (event.getRawX() - listViewCoords[0]);
+                int y = (int) (event.getRawY() - listViewCoords[1]);
+                View child;
+
+                mDownView = mRecyclerView.findChildViewUnder(x, y);
+
+                if (mDownView != null) {
+                    mDownX = event.getRawX();
+                    mDownY = event.getRawY();
+
+                    mDownPosition = mRecyclerView.getChildPosition(mDownView);
+                    if (mCallbacks.canDismiss(mDownPosition)) {
+                        mVelocityTracker = VelocityTracker.obtain();
+                        mVelocityTracker.addMovement(event);
+                    } else {
+                        mDownView = null;
+                    }
+                }
+                return false;
+            }
+
+            case MotionEvent.ACTION_CANCEL: {
+                if (mVelocityTracker == null) {
+                    break;
+                }
+
+                if (mDownView != null && mSwiping) {
+                    if (mIsVertical) {
+                        mDownView.animate().translationY(0).alpha(1).setDuration(mAnimationTime).setListener(null);
+                    } else {
+                        mDownView.animate().translationX(0).alpha(1).setDuration(mAnimationTime).setListener(null);
+                    }
+                }
+                mVelocityTracker.recycle();
+                mVelocityTracker = null;
+                mDownX = 0;
+                mDownY = 0;
+                mDownView = null;
+                mDownPosition = RecyclerView.NO_POSITION;
+                mSwiping = false;
+                break;
+            }
+
+            case MotionEvent.ACTION_UP: {
+                if (!mSwiping && mDownView != null && mItemTouchCallback != null) {
+                    mItemTouchCallback.onTouch(mRecyclerView.getChildPosition(mDownView));
+                    mVelocityTracker.recycle();
+                    mVelocityTracker = null;
+                    mDownX = 0;
+                    mDownY = 0;
+                    mDownView = null;
+                    mDownPosition = ListView.INVALID_POSITION;
+                    mSwiping = false;
+                    return true;
+                }
+
+                if (mVelocityTracker == null) {
+                    break;
+                }
+
+                float deltaX = event.getRawX() - mDownX;
+            }
+        }
     }
 
     public interface DismissCallbacls {
@@ -100,8 +188,4 @@ public class SwipeDismissRecyclerView implements View.OnTouchListener {
         }
     }
 
-    @Override
-    public boolean onTouch(View v, MotionEvent event) {
-        return false;
-    }
 }

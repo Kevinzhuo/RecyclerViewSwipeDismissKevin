@@ -1,14 +1,20 @@
 package com.kevin.kevinzhuo.mylibrary;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.graphics.Rect;
+import android.os.SystemClock;
 import android.support.v7.widget.RecyclerView;
 import android.view.MotionEvent;
 import android.view.VelocityTracker;
 import android.view.View;
 import android.view.ViewConfiguration;
+import android.view.ViewGroup;
 import android.widget.ListView;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class SwipeDismissRecyclerView implements View.OnTouchListener {
@@ -130,8 +136,201 @@ public class SwipeDismissRecyclerView implements View.OnTouchListener {
                 }
 
                 float deltaX = event.getRawX() - mDownX;
+                float deltaY = event.getRawY() - mDownY;
+                mVelocityTracker.addMovement(event);
+                mVelocityTracker.computeCurrentVelocity(1000);
+                float velocityX = mVelocityTracker.getXVelocity();
+                float velocityY = mVelocityTracker.getYVelocity();
+                float absVelocityX = Math.abs(velocityX);
+                float absVelocityY = Math.abs(velocityY);
+                boolean dismiss = false;
+                boolean dismissRight = false;
+
+                if (mIsVertical) {
+                    if (Math.abs(deltaY) > mViewWidth / 2 && mSwiping) {
+                        dismiss = true;
+                        dismissRight = deltaY > 0;
+                    } else if (mMinFlingVelocity <= absVelocityY && absVelocityY <= mMaxFlingVelocity && absVelocityX < absVelocityY && mSwiping) {
+                        dismiss = (velocityY < 0) == (deltaY < 0);
+                        dismissRight = mVelocityTracker.getYVelocity() > 0;
+                    }
+
+                    if (dismiss && mDownPosition != ListView.INVALID_POSITION) {
+                        final View downView = mDownView;
+                        final int downPosition = mDownPosition;
+                        ++mDismissAnimationRefCount;
+                        mDownView.animate().translationY(dismissRight ? mViewWidth : -mViewWidth).alpha(0).setDuration(mAnimationTime).setListener(new AnimatorListenerAdapter() {
+                            @Override
+                            public void onAnimationEnd(Animator animation) {
+                                performDismiss(downView, downPosition);
+                            }
+                        });
+                    } else {
+                        mDownView.animate().translationY(0).alpha(1).setDuration(mAnimationTime).setListener(null);
+                    }
+                    mVelocityTracker.recycle();
+                    mVelocityTracker = null;
+                    mDownX = 0;
+                    mDownY = 0;
+                    mDownView = null;
+                    mDownPosition = ListView.INVALID_POSITION;
+                    mSwiping = false;
+                } else {
+                    if (Math.abs(deltaX) > mViewWidth / 2 && mSwiping) {
+                        dismiss = true;
+                        dismissRight = deltaX > 0;
+                    } else if (mMinFlingVelocity <= absVelocityX && absVelocityX <= mMaxFlingVelocity && absVelocityY < absVelocityX && mSwiping) {
+                        dismiss = (velocityX < 0) == (deltaX < 0);
+                        dismissRight = mVelocityTracker.getXVelocity() > 0;
+                    }
+
+                    if (dismiss && mDownPosition != ListView.INVALID_POSITION) {
+                        final View downView = mDownView;
+                        final int downPosition = mDownPosition;
+                        ++mDismissAnimationRefCount;
+                        mDownView.animate()
+                                .translationX(dismissRight ? mViewWidth : -mViewWidth)
+                                .alpha(0)
+                                .setDuration(mAnimationTime)
+                                .setListener(new AnimatorListenerAdapter() {
+                                    @Override
+                                    public void onAnimationEnd(Animator animation) {
+                                        performDismiss(downView, downPosition);
+                                    }
+                                });
+                    } else {
+                        // cancel
+                        mDownView.animate()
+                                .translationX(0)
+                                .alpha(1)
+                                .setDuration(mAnimationTime)
+                                .setListener(null);
+                    }
+                    mVelocityTracker.recycle();
+                    mVelocityTracker = null;
+                    mDownX = 0;
+                    mDownY = 0;
+                    mDownView = null;
+                    mDownPosition = ListView.INVALID_POSITION;
+                    mSwiping = false;
+                }
+                break;
+            }
+
+            case MotionEvent.ACTION_MOVE: {
+                if (mVelocityTracker == null || mPaused) {
+                    break;
+                }
+
+                mVelocityTracker.addMovement(event);
+                float deltaX = event.getRawX() - mDownX;
+                float deltaY = event.getRawY() - mDownY;
+                if (mIsVertical) {
+                    if (Math.abs(deltaY) > mSlop && Math.abs(deltaX) < Math.abs(deltaY) / 2) {
+                        mSwiping = true;
+                        mSwipingSlop = (deltaY > 0 ? mSlop : -mSlop);
+                        mRecyclerView.requestDisallowInterceptTouchEvent(true);
+                        MotionEvent cancelEvent = MotionEvent.obtain(event);
+                        cancelEvent.setAction(MotionEvent.ACTION_CANCEL | (event.getActionIndex() << MotionEvent.ACTION_POINTER_INDEX_SHIFT));
+                        mRecyclerView.onTouchEvent(cancelEvent);
+                        cancelEvent.recycle();
+                    }
+
+                    if (mSwiping) {
+                        mDownView.setTranslationY(deltaY - mSwipingSlop);
+                        mDownView.setAlpha(Math.max(0f, Math.min(1f, 1f - 2f * Math.abs(deltaY) / mViewWidth)));
+                        return true;
+                    }
+                } else {
+                    if (Math.abs(deltaX) > mSlop && Math.abs(deltaY) < Math.abs(deltaX) / 2) {
+                        mSwiping = true;
+                        mSwipingSlop = (deltaX > 0 ? mSlop : -mSlop);
+                        mRecyclerView.requestDisallowInterceptTouchEvent(true);
+
+                        // Cancel ListView's touch (un-highlighting the item)
+                        MotionEvent cancelEvent = MotionEvent.obtain(event);
+                        cancelEvent.setAction(MotionEvent.ACTION_CANCEL |
+                                (event.getActionIndex()
+                                        << MotionEvent.ACTION_POINTER_INDEX_SHIFT));
+                        mRecyclerView.onTouchEvent(cancelEvent);
+                        cancelEvent.recycle();
+                    }
+
+                    if (mSwiping) {
+                        mDownView.setTranslationX(deltaX - mSwipingSlop);
+                        mDownView.setAlpha(Math.max(0f, Math.min(1f,
+                                1f - 2f * Math.abs(deltaX) / mViewWidth)));
+                        return true;
+                    }
+                }
+                break;
             }
         }
+        return false;
+    }
+
+    private void performDismiss(final View dismissView, final int dismissPostion) {
+        final ViewGroup.LayoutParams lp = dismissView.getLayoutParams();
+        final int originalHeight;
+        if (mIsVertical)
+            originalHeight = dismissView.getWidth();
+        else
+            originalHeight = dismissView.getHeight();
+
+        ValueAnimator animator = ValueAnimator.ofInt(originalHeight, 1).setDuration(mAnimationTime);
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                --mDismissAnimationRefCount;
+                if (mDismissAnimationRefCount == 0) {
+                    Collections.sort(mPendingDismisses);
+
+                    int[] dismissPositions = new int[mPendingDismisses.size()];
+                    for (int i = mPendingDismisses.size() - 1; i >= 0; i--) {
+                        dismissPositions[i] = mPendingDismisses.get(i).position;
+                    }
+                    mCallbacks.onDismiss(dismissView);
+
+                    mDownPosition = ListView.INVALID_POSITION;
+
+                    ViewGroup.LayoutParams lp;
+                    for (PendingDismissData pendingDismiss : mPendingDismisses) {
+                        pendingDismiss.view.setAlpha(1f);
+                        if (mIsVertical)
+                            pendingDismiss.view.setTranslationY(0);
+                        else
+                            pendingDismiss.view.setTranslationX(0);
+                        lp = pendingDismiss.view.getLayoutParams();
+                        if (mIsVertical)
+                            lp.width = originalHeight;
+                        else
+                            lp.height = originalHeight;
+
+                        pendingDismiss.view.setLayoutParams(lp);
+                    }
+
+                    long time = SystemClock.uptimeMillis();
+                    MotionEvent cancleEvent = MotionEvent.obtain(time, time, MotionEvent.ACTION_CANCEL, 0, 0, 0);
+                    mRecyclerView.dispatchTouchEvent(cancleEvent);
+
+                    mPendingDismisses.clear();
+                }
+            }
+        });
+
+        animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                if (mIsVertical)
+                    lp.width = (int) animation.getAnimatedValue();
+                else
+                    lp.height = (int) animation.getAnimatedValue();
+                dismissView.setLayoutParams(lp);
+            }
+        });
+
+        mPendingDismisses.add(new PendingDismissData(dismissPostion, dismissView));
+        animator.start();
     }
 
     public interface DismissCallbacls {

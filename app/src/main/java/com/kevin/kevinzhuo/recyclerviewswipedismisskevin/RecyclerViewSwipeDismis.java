@@ -1,12 +1,10 @@
 package com.kevin.kevinzhuo.recyclerviewswipedismisskevin;
 
+import android.app.Activity;
 import android.app.AlertDialog;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
@@ -17,7 +15,7 @@ import com.kevin.kevinzhuo.mylibrary.SwipeDismissRecyclerView;
 import java.util.LinkedList;
 import java.util.List;
 
-public class RecyclerViewSwipeDismis extends AppCompatActivity {
+public class RecyclerViewSwipeDismis extends Activity {
 
     private void showDialog(String msg) {
         AlertDialog alert = new AlertDialog.Builder(RecyclerViewSwipeDismis.this).setTitle("alert").setMessage(msg).setCancelable(false).create();
@@ -127,27 +125,5 @@ public class RecyclerViewSwipeDismis extends AppCompatActivity {
                 mTextView = (TextView) itemView;
             }
         }
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_recycler_view_swipe_dismis, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
     }
 }
